@@ -14,8 +14,8 @@ remove!(s, id) = filter!(x-> x != id, s.ids)
 add!(s, id) = push!(s.ids, id)
 
 Random.seed!(8710) # set random number seed for reproducibility
-num_customers = 10_000 # total number of customers generated
-num_servers = 100 # number of servers
+num_customers = 10 # total number of customers generated
+num_servers = 2 # number of servers
 mu = 1.0 / 2 # service rate
 lam = 0.9 # arrival rate
 arrival_dist = Exponential(1 / lam) # interarrival time distriubtion
@@ -23,12 +23,12 @@ service_dist = Exponential(1 / mu); # service time distribution
 
 function enter_line(clock, server, id, service_dist, arrival_time)
     delay!(clock, arrival_time)
-    #now!(clock, fun(println, "Customer $id arrived: ", clock.time))
+    now!(clock, fun(println, "Customer $id arrived: ", clock.time))
     if is_full(server)
         now!(clock, fun(println, "Customer $id is waiting: ", clock.time))
         wait!(clock, fun(()->!is_full(server)))
     end
-    #now!(clock, fun(println,"Customer $id starting service: ", clock.time))
+    now!(clock, fun(println,"Customer $id starting service: ", clock.time))
     add!(server, id)
     tΔ = rand(service_dist)
     delay!(clock, tΔ)
@@ -36,7 +36,7 @@ function enter_line(clock, server, id, service_dist, arrival_time)
 end
 
 function leave(clock, server, id)
-    #now!(clock, fun(println, "Customer $id finishing service: ", clock.time))
+    now!(clock, fun(println, "Customer $id finishing service: ", clock.time))
     remove!(server, id)
 end
 
@@ -52,9 +52,11 @@ function benchmark(arrival_dist, service_dist, num_customers, num_servers)
     clock = Clock()
     server = Server(num_servers)
     initialize!(clock, arrival_dist, service_dist, num_customers, server)
-    run!(clock, 10^8)
+    run!(clock, 10^4)
 end
 
-@btime benchmark(arrival_dist, service_dist, num_customers, num_servers)
+benchmark(arrival_dist, service_dist, num_customers, num_servers)
 
-# 256.218 ms (1420467 allocations: 75.07 MiB)
+#@btime benchmark(arrival_dist, service_dist, num_customers, num_servers)
+
+# 9.855 s (5927629 allocations: 344.12 MiB)
