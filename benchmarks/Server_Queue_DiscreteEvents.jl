@@ -1,4 +1,7 @@
+cd(@__DIR__)
 using DiscreteEvents, DataStructures, Distributions, Random, BenchmarkTools
+using Plots
+const _bench = [false]
 
 mutable struct Server
     capacity::Int
@@ -7,7 +10,7 @@ end
 
 Server(capacity) = Server(capacity, Int[])
 
-is_full(s) = length(s.ids) == s.capacity ? true : false
+is_full(s) = length(s.ids) ≥ s.capacity
 
 remove!(s, id) = filter!(x-> x != id, s.ids)
 
@@ -23,20 +26,22 @@ service_dist = Exponential(1 / mu); # service time distribution
 
 function enter_line(clock, server, id, service_dist, arrival_time)
     delay!(clock, arrival_time)
-    now!(clock, fun(println, "Customer $id arrived: ", clock.time))
+    _bench[end] ||  now!(clock, fun(println, "Customer $id arrived: ", clock.time))
     if is_full(server)
-        now!(clock, fun(println, "Customer $id is waiting: ", clock.time))
-        wait!(clock, fun(()->!is_full(server)))
+        _bench[end] || now!(clock, fun(println, "Customer $id is waiting: ", clock.time))
+        wait!(clock, ()->!is_full(server))
     end
-    now!(clock, fun(println,"Customer $id starting service: ", clock.time))
+    _bench[end] ||  now!(clock, fun(println,"Customer $id starting service: ", clock.time))
     add!(server, id)
     tΔ = rand(service_dist)
     delay!(clock, tΔ)
     leave(clock, server, id)
+    # now!(clock, fun(println, "servers available ", server.capacity-length(server.ids), " ", clock.time))
+    # now!(clock, fun(println, "servers full ", is_full(server), " ", clock.time))
 end
 
 function leave(clock, server, id)
-    now!(clock, fun(println, "Customer $id finishing service: ", clock.time))
+    _bench[end] || now!(clock, fun(println, "Customer $id finishing service: ", clock.time))
     remove!(server, id)
 end
 
@@ -48,15 +53,21 @@ function initialize!(clock, arrival_dist, service_dist, num_customers, server)
     end
 end
 
-function benchmark(arrival_dist, service_dist, num_customers, num_servers)
+function run_model(arrival_dist, service_dist, num_customers, num_servers, t)
     clock = Clock()
     server = Server(num_servers)
     initialize!(clock, arrival_dist, service_dist, num_customers, server)
-    run!(clock, 10^4)
+    run!(clock, t)
 end
 
-benchmark(arrival_dist, service_dist, num_customers, num_servers)
+function run_model(num_customers)
+    result = @benchmark run_model($arrival_dist, $service_dist, $num_customers, $num_servers, 2000000)
+    return mean(result).time*1e-9
+end
 
-#@btime benchmark(arrival_dist, service_dist, num_customers, num_servers)
+_bench[end] = true
+N = [10,1000,2000,4000]
 
-# 9.855 s (5927629 allocations: 344.12 MiB)
+times = run_model.(N)
+plot(N, times, xlabel="Customers", ylabel="Time (seconds)", leg=false, grid=false)
+savefig("DiscreteEvents_Queue.png")
